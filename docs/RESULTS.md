@@ -152,49 +152,53 @@ NOTE on 0.811 vs 0.809:
   from the official re-val, or state both as above.
 
 --------------------------------------------------------------------------------
-6. COMPARISON TABLE (thesis-ready) — mAP50
+6. COMPARISON TABLE — PRIMARY @ imgsz=640 (matched resolution, 8.9 GFLOPs)
 --------------------------------------------------------------------------------
-CAVEAT: the table below mixes long-stage val at imgsz=640 with fine-tune
-val at imgsz=768. Do NOT attribute the full delta to fine-tuning alone until
-the fair matrix in §6b is filled (same imgsz for both checkpoints).
+Both checkpoints validated independently on HiXray val (9069 images), conf=0.001.
+Long-stage: prior GPU re-val @640.  epoch20: CPU re-val @640 (this session).
 
-  Class                   FDD before*   FT epoch20†    Delta
-  --------------------  ------------  ------------  --------
-  Cosmetic                    0.654         0.665     +0.011
-  Laptop                      0.979         0.980     +0.001
-  Mobile_Phone                0.979         0.979      0.000
-  Nonmetallic_Lighter         0.017         0.086     +0.069
-  Portable_Charger_1          0.951         0.951      0.000
-  Portable_Charger_2          0.931         0.937     +0.006
-  Tablet                      0.956         0.955     -0.001
-  Water                       0.932         0.919     -0.013
-  ALL                         0.800         0.809     +0.009
-  Rare avg                    0.336         0.375     +0.040
+  Class                   Long @640    epoch20 @640    Delta
+  --------------------  ------------  --------------  --------
+  Cosmetic                    0.654           0.653     -0.001
+  Laptop                      0.979           0.980     +0.001
+  Mobile_Phone                0.979           0.979      0.000
+  Nonmetallic_Lighter         0.017           0.066     +0.049
+  Portable_Charger_1          0.951           0.949     -0.002
+  Portable_Charger_2          0.931           0.932     +0.001
+  Tablet                      0.956           0.957     +0.001
+  Water                       0.932           0.922     -0.010
+  ALL                         0.800           0.805     +0.005
+  Rare avg                    0.336           0.360     +0.024
 
-  * imgsz=640   † imgsz=768   (selected FT checkpoint = epoch20.pt)
+Complexity at this operating point: 3.37M params, **8.9 GFLOPs**.
 
 External reference:
   YOLOv11n baseline (overall mAP50) ≈ 0.803
-  → Fine-tuned hybrid overall 0.809 is ABOVE this baseline.
+  → epoch20 @640 overall 0.805 is slightly above this baseline.
 
 --------------------------------------------------------------------------------
-6b. FAIR RESOLUTION MATRIX (required before FT attribution)
+6a. APPENDIX — epoch20 @ imgsz=768 (train resolution; 12.8 GFLOPs)
 --------------------------------------------------------------------------------
-Validate BOTH checkpoints at 640 and 768 (conf=0.001, same val set):
+  ALL 0.809 · Cosmetic 0.665 · Lighter 0.086
+  Use only as appendix / ablation; primary thesis numbers are §6 @640.
 
+--------------------------------------------------------------------------------
+6b. FAIR RESOLUTION MATRIX (filled for epoch20 @640; long @640 known)
+--------------------------------------------------------------------------------
   Checkpoint                         imgsz=640              imgsz=768
   --------------------------------  ----------------------  ----------------------
-  Long-stage best.pt                ALL / Cos / Lig  TBD    ALL / Cos / Lig  TBD
-  Selected epoch20.pt               ALL / Cos / Lig  TBD    ALL / Cos / Lig  TBD
+  Long-stage best.pt                ALL 0.800 Cos 0.654     (optional appendix)
+                                    Lig 0.017
+  Selected epoch20.pt               ALL 0.805 Cos 0.653     ALL 0.809 Cos 0.665
+                                    Lig 0.066               Lig 0.086
 
-  Matched-imgsz delta (epoch20 − long):
-    imgsz=640:  ALL ?   Cos ?   Lig ?
-    imgsz=768:  ALL ?   Cos ?   Lig ?
+  Matched-imgsz delta @640 (epoch20 − long):
+    ALL +0.005   Cos −0.001   Lig +0.049
 
-How to run:
-  Kaggle: paste kaggle/cell_03_fair_res_eval.py (one cell)
-  Local:  python scripts/run_fair_res_eval.py
-  Weights in repo: models/hybrid_fdd_long_best.pt + models/hybrid_rare_ft_epoch20.pt
+How to re-run:
+  python scripts/run_val.py --weights models/hybrid_rare_ft_epoch20.pt --imgsz 640
+  Kaggle: kaggle/cell_05_reeval_640_primary.py
+  CSV: docs/tables/epoch20_perclass_imgsz640.csv
 
 --------------------------------------------------------------------------------
 7. TAKEAWAYS
