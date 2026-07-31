@@ -1,0 +1,10 @@
+﻿class,mAP50,mAP50-95,notes
+ALL,0.80481,0.50170,"P=0.803 R=0.782; imgsz=640 conf=0.001 CPU re-val"
+Cosmetic,0.65282,0.227,
+Laptop,0.98041,0.728,
+Mobile_Phone,0.97872,0.661,
+Nonmetallic_Lighter,0.06616,0.0287,
+Portable_Charger_1,0.94909,0.568,
+Portable_Charger_2,0.93241,0.536,
+Tablet,0.95708,0.697,
+Water,0.92182,0.566,
