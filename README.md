@@ -45,6 +45,16 @@ Then set `path:` to that `--target` folder.
 python scripts/run_val.py
 ```
 
+### 2b) Fair resolution check (long vs epoch20 @ 640 and 768)
+
+Do this before claiming fine-tune gains (isolates imgsz effects):
+
+```bash
+python scripts/run_fair_res_eval.py
+```
+
+Or on Kaggle: paste [`kaggle/cell_03_fair_res_eval.py`](kaggle/cell_03_fair_res_eval.py).
+
 ### 3) Predict on images
 
 ```bash

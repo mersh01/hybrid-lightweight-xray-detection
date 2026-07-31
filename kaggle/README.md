@@ -11,6 +11,7 @@ Then:
 |------|--------|
 | [`cell_01_eval.py`](cell_01_eval.py) | Copy **entire file** into one notebook cell → Run (official val metrics) |
 | [`cell_02_predict.py`](cell_02_predict.py) | Copy into next cell → Run (saves prediction overlays) |
+| [`cell_03_fair_res_eval.py`](cell_03_fair_res_eval.py) | **Fair matrix:** long vs epoch20 at imgsz **640 and 768** (required for FT attribution) |
 
 ## Full training on Kaggle
 

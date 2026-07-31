@@ -13,12 +13,13 @@ venv/
 Thumbs.db
 ~$*
 
-# Model weights & data (keep only released final checkpoint under models/)
+# Model weights & data (keep released checkpoints under models/)
 *.pt
 *.pth
 *.onnx
 *.engine
 !models/hybrid_rare_ft_epoch20.pt
+!models/hybrid_fdd_long_best.pt
 runs/
 HiXray*/
 **/images/

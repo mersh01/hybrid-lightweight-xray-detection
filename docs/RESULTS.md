@@ -154,7 +154,11 @@ NOTE on 0.811 vs 0.809:
 --------------------------------------------------------------------------------
 6. COMPARISON TABLE (thesis-ready) — mAP50
 --------------------------------------------------------------------------------
-  Class                   FDD before    FT epoch20     Delta
+CAVEAT: the table below mixes long-stage val at imgsz=640 with fine-tune
+val at imgsz=768. Do NOT attribute the full delta to fine-tuning alone until
+the fair matrix in §6b is filled (same imgsz for both checkpoints).
+
+  Class                   FDD before*   FT epoch20†    Delta
   --------------------  ------------  ------------  --------
   Cosmetic                    0.654         0.665     +0.011
   Laptop                      0.979         0.980     +0.001
@@ -167,9 +171,30 @@ NOTE on 0.811 vs 0.809:
   ALL                         0.800         0.809     +0.009
   Rare avg                    0.336         0.375     +0.040
 
+  * imgsz=640   † imgsz=768   (selected FT checkpoint = epoch20.pt)
+
 External reference:
   YOLOv11n baseline (overall mAP50) ≈ 0.803
   → Fine-tuned hybrid overall 0.809 is ABOVE this baseline.
+
+--------------------------------------------------------------------------------
+6b. FAIR RESOLUTION MATRIX (required before FT attribution)
+--------------------------------------------------------------------------------
+Validate BOTH checkpoints at 640 and 768 (conf=0.001, same val set):
+
+  Checkpoint                         imgsz=640              imgsz=768
+  --------------------------------  ----------------------  ----------------------
+  Long-stage best.pt                ALL / Cos / Lig  TBD    ALL / Cos / Lig  TBD
+  Selected epoch20.pt               ALL / Cos / Lig  TBD    ALL / Cos / Lig  TBD
+
+  Matched-imgsz delta (epoch20 − long):
+    imgsz=640:  ALL ?   Cos ?   Lig ?
+    imgsz=768:  ALL ?   Cos ?   Lig ?
+
+How to run:
+  Kaggle: paste kaggle/cell_03_fair_res_eval.py (one cell)
+  Local:  python scripts/run_fair_res_eval.py
+  Weights in repo: models/hybrid_fdd_long_best.pt + models/hybrid_rare_ft_epoch20.pt
 
 --------------------------------------------------------------------------------
 7. TAKEAWAYS
