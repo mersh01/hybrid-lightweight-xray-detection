@@ -13,11 +13,12 @@ venv/
 Thumbs.db
 ~$*
 
-# Model weights & data (too large / not for GitHub)
+# Model weights & data (keep only released final checkpoint under models/)
 *.pt
 *.pth
 *.onnx
 *.engine
+!models/hybrid_rare_ft_epoch20.pt
 runs/
 HiXray*/
 **/images/

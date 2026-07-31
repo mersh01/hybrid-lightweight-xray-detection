@@ -38,9 +38,30 @@ MSc research project: a **lightweight hybrid YOLO detector** for prohibited item
 
 ---
 
+## Final model (download)
+
+**Released weights:** [`models/hybrid_rare_ft_epoch20.pt`](models/hybrid_rare_ft_epoch20.pt)  
+(~26 MB · rare-class fine-tune epoch 20 · overall mAP50 ≈ **0.809**)
+
+See [`models/README.md`](models/README.md) for load instructions.
+
+## Final code (what to look at)
+
+| Path | Role |
+|------|------|
+| [`modules/hybrid_modules.py`](modules/hybrid_modules.py) | Final architecture blocks |
+| [`modules/custom_rare_trainer.py`](modules/custom_rare_trainer.py) | Final rare-class loss + trainer |
+| [`configs/hybrid_yolo.yaml`](configs/hybrid_yolo.yaml) | Final model YAML |
+| [`scripts/train_fdd_protocol_kaggle.py`](scripts/train_fdd_protocol_kaggle.py) | Stage A long training |
+| [`scripts/train_rare_finetune_kaggle.py`](scripts/train_rare_finetune_kaggle.py) | Stage B fine-tune that produced `epoch20.pt` |
+| [`scripts/eval_epoch20_kaggle.txt`](scripts/eval_epoch20_kaggle.txt) | Official per-class eval cell |
+
 ## Repository layout
 
 ```text
+models/
+  hybrid_rare_ft_epoch20.pt # FINAL released checkpoint
+  README.md
 configs/
   hybrid_yolo.yaml          # hybrid architecture
   dataset.yaml.example      # HiXray YOLO layout example
@@ -132,7 +153,7 @@ See [`docs/MODULE_SOURCES.md`](docs/MODULE_SOURCES.md). Key DOIs:
 ## Disclaimer
 
 - Re-implementations are **adapted for Ultralytics YAML**, not official author code.  
-- Large checkpoints (`.pt`) and full image datasets are **not** in this repo (size / license).  
+- The **final** fine-tuned checkpoint is included under `models/`. Intermediate `.pt` files and the full HiXray image dataset are not.  
 - This is academic / research code from an MSc thesis workflow.
 
 ## License
