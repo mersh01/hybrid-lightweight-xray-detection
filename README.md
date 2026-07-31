@@ -55,6 +55,14 @@ python scripts/run_fair_res_eval.py
 
 Or on Kaggle: paste [`kaggle/cell_03_fair_res_eval.py`](kaggle/cell_03_fair_res_eval.py).
 
+### 2c) Complexity (GFLOPs @ 640 and 768)
+
+```bash
+python scripts/run_complexity.py
+```
+
+Measured: **8.9 GFLOPs @640**, **12.8 GFLOPs @768** (3.37M params, both checkpoints).
+
 ### 3) Predict on images
 
 ```bash
@@ -97,7 +105,7 @@ Full training cells (Stage A / resume / rare FT): see [`kaggle/README.md`](kaggl
 | Long training (FDD-style protocol) | Overall mAP50 ≈ **0.800** |
 | Rare-class fine-tune (`epoch20.pt`) | Overall mAP50 ≈ **0.809** (above YOLOv11n ≈ 0.803) |
 | Nonmetallic_Lighter | **0.017 → 0.086** after rare-class fine-tune (~5×) |
-| Model size | ~3.37M parameters · ~8.9 GFLOPs · ~13 MB checkpoint |
+| Model size | 3.37M params · **8.9 GFLOPs @640** · **12.8 GFLOPs @768** |
 
 ---
 

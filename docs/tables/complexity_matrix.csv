@@ -1,0 +1,5 @@
+weights,imgsz,layers,params,gradients,GFLOPs
+hybrid_fdd_long_best.pt,640,258,3371158,0,8.8758496
+hybrid_fdd_long_best.pt,768,258,3371158,0,12.781223424
+hybrid_rare_ft_epoch20.pt,640,258,3371158,0,8.8758496
+hybrid_rare_ft_epoch20.pt,768,258,3371158,0,12.781223424
