@@ -1,0 +1,16 @@
+# Example HiXray YOLO dataset config
+# Copy to dataset.yaml and set path to your local/Kaggle dataset root.
+
+path: /path/to/HiXray_YOLO2
+train: images/train
+val: images/val
+
+names:
+  0: Cosmetic
+  1: Laptop
+  2: Mobile_Phone
+  3: Nonmetallic_Lighter
+  4: Portable_Charger_1
+  5: Portable_Charger_2
+  6: Tablet
+  7: Water

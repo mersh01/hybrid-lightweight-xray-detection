@@ -1,0 +1,206 @@
+# Per-class eval on epoch20.pt
+# Inputs: HiXray_YOLO2 + epoch20.pt | GPU: T4
+# Writes hybrid_modules + custom_rare_trainer BEFORE YOLO load
+
+!pip -q install ultralytics==8.4.103 pillow==11.0.0
+
+import os, re, sys, importlib
+from pathlib import Path
+
+WORK = Path('/kaggle/working/ft40_eval')
+WORK.mkdir(parents=True, exist_ok=True)
+INPUT = Path('/kaggle/input')
+
+DATASET = None
+for p in INPUT.rglob('HiXray_YOLO2'):
+    if (p / 'images' / 'val').exists():
+        DATASET = p
+        break
+assert DATASET is not None, 'Add HiXray_YOLO2'
+
+pts = [p for p in INPUT.rglob('*.pt') if p.stat().st_size > 5_000_000]
+pts.sort(key=lambda p: (0 if 'epoch20' in p.name else 1, -p.stat().st_size))
+assert pts, 'Add epoch20.pt'
+CKPT = pts[0]
+print('DATASET', DATASET)
+print('CKPT', CKPT)
+
+CLASSES = [
+    'Cosmetic', 'Laptop', 'Mobile_Phone', 'Nonmetallic_Lighter',
+    'Portable_Charger_1', 'Portable_Charger_2', 'Tablet', 'Water',
+]
+yaml = WORK / 'dataset.yaml'
+yaml.write_text(
+    f"path: {DATASET.as_posix()}\ntrain: images/train\nval: images/val\nnc: 8\nnames:\n"
+    + '\n'.join(f'  {i}: {n}' for i, n in enumerate(CLASSES)) + '\n',
+    encoding='utf-8',
+)
+
+(WORK / 'hybrid_modules.py').write_text(r'''
+from __future__ import annotations
+import torch
+import torch.nn as nn
+
+class DualConv(nn.Module):
+    def __init__(self, c1, c2, k=3, s=1, p=None):
+        super().__init__()
+        if p is None:
+            p = k // 2
+        self.gconv = nn.Conv2d(c1, c1, k, s, p, groups=c1, bias=False)
+        self.bn1 = nn.BatchNorm2d(c1)
+        self.pconv = nn.Conv2d(c1, c2, 1, bias=False)
+        self.bn2 = nn.BatchNorm2d(c2)
+        self.act = nn.SiLU(inplace=True)
+    def forward(self, x):
+        return self.act(self.bn2(self.pconv(self.act(self.bn1(self.gconv(x))))))
+
+class SobelConv(nn.Module):
+    def __init__(self, c1, c2):
+        super().__init__()
+        self.conv = nn.Conv2d(c1, c2, 3, padding=1, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = nn.SiLU(inplace=True)
+        sobel_x = torch.tensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=torch.float32)
+        sobel_y = sobel_x.T
+        with torch.no_grad():
+            for i in range(min(c2, c1)):
+                self.conv.weight[i, i % c1] = sobel_x if i % 2 == 0 else sobel_y
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))
+
+class FDDN(nn.Module):
+    def __init__(self, c1, c2):
+        super().__init__()
+        self.pool = nn.AvgPool2d(3, stride=1, padding=1)
+        self.low_path = DualConv(c1, c2 // 2)
+        self.high_path = SobelConv(c1, c2 // 2)
+        self.se = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(c2, c2 // 4, 1), nn.SiLU(),
+            nn.Conv2d(c2 // 4, c2, 1), nn.Sigmoid(),
+        )
+    def forward(self, x):
+        low = self.pool(x)
+        high = x - low
+        feat = torch.cat([self.low_path(low), self.high_path(high)], dim=1)
+        return feat * self.se(feat)
+
+class SSCAM(nn.Module):
+    def __init__(self, c1, reduction=16):
+        super().__init__()
+        mid = max(c1 // reduction, 4)
+        self.ca = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(c1, mid, 1, bias=False), nn.ReLU(inplace=True),
+            nn.Conv2d(mid, c1, 1, bias=False), nn.Sigmoid(),
+        )
+        self.sa = nn.Sequential(nn.Conv2d(2, 1, 7, padding=3, bias=False), nn.Sigmoid())
+    def forward(self, x):
+        out = x * self.ca(x)
+        avg = torch.mean(out, dim=1, keepdim=True)
+        mx, _ = torch.max(out, dim=1, keepdim=True)
+        return out * self.sa(torch.cat([avg, mx], dim=1))
+
+class DAPA_FPN(nn.Module):
+    def __init__(self, c1, c2):
+        super().__init__()
+        self.fg_branch = nn.Sequential(DualConv(c1, c2), SSCAM(c2))
+        self.bg_gate = nn.Sequential(
+            nn.Conv2d(c1, c2, 1, bias=False), nn.BatchNorm2d(c2), nn.Sigmoid(),
+        )
+        self.fuse = DualConv(c2, c2)
+    def forward(self, x):
+        return self.fuse(self.fg_branch(x) * (1.0 + self.bg_gate(x)))
+
+class HybridBlock(nn.Module):
+    def __init__(self, c1, c2):
+        super().__init__()
+        self.block = nn.Sequential(FDDN(c1, c2), SSCAM(c2))
+    def forward(self, x):
+        return self.block(x)
+
+class DAPABlock(nn.Module):
+    def __init__(self, c1, c2):
+        super().__init__()
+        self.block = DAPA_FPN(c1, c2)
+    def forward(self, x):
+        return self.block(x)
+''', encoding='utf-8')
+
+(WORK / 'custom_rare_trainer.py').write_text(
+    'from ultralytics.models.yolo.detect import DetectionTrainer\n'
+    'from ultralytics.nn.tasks import DetectionModel\n'
+    'from ultralytics.utils.loss import v8DetectionLoss\n'
+    'import torch\n'
+    'import torch.nn as nn\n'
+    'RARE_CLS_WEIGHTS = [1.5, 1.0, 1.0, 3.0, 1.0, 1.0, 1.0, 1.0]\n'
+    'class WeightedDetectionLoss(v8DetectionLoss):\n'
+    '    def __init__(self, model, class_weights=None, tal_topk=10, tal_topk2=None):\n'
+    '        super().__init__(model, tal_topk=tal_topk, tal_topk2=tal_topk2)\n'
+    '        if class_weights is not None:\n'
+    '            self.bce = nn.BCEWithLogitsLoss(pos_weight=class_weights.to(self.device), reduction="none")\n'
+    'class WeightedDetectionModel(DetectionModel):\n'
+    '    def init_criterion(self):\n'
+    '        return WeightedDetectionLoss(self, class_weights=torch.tensor(RARE_CLS_WEIGHTS, dtype=torch.float32))\n'
+    'class RareClassTrainer(DetectionTrainer):\n'
+    '    pass\n',
+    encoding='utf-8',
+)
+
+sys.path.insert(0, str(WORK))
+for name in list(sys.modules):
+    if name in ('hybrid_modules', 'custom_rare_trainer') or name.startswith('hybrid_modules.') or name.startswith('custom_rare_trainer.'):
+        del sys.modules[name]
+
+import custom_rare_trainer
+from hybrid_modules import DualConv, SobelConv, FDDN, SSCAM, DAPA_FPN, HybridBlock, DAPABlock
+import ultralytics.nn.tasks as yolo_tasks
+CUSTOM = {
+    'DualConv': DualConv, 'SobelConv': SobelConv, 'FDDN': FDDN, 'SSCAM': SSCAM,
+    'DAPA_FPN': DAPA_FPN, 'HybridBlock': HybridBlock, 'DAPABlock': DAPABlock,
+}
+for k, v in CUSTOM.items():
+    setattr(yolo_tasks, k, v)
+
+tasks_py = Path(yolo_tasks.__file__)
+t = tasks_py.read_text(encoding='utf-8')
+imp = (
+    'import sys\n'
+    f"if r'{WORK}' not in sys.path:\n"
+    f"    sys.path.insert(0, r'{WORK}')\n"
+    'from hybrid_modules import DualConv, SobelConv, FDDN, SSCAM, DAPA_FPN, HybridBlock, DAPABlock\n'
+)
+if 'from hybrid_modules import' not in t:
+    t = imp + t
+MARKER = 'elif m in (HybridBlock, DAPABlock, DAPA_FPN, FDDN, DualConv, SobelConv)'
+if MARKER not in t:
+    injection = (
+        '        elif m in (HybridBlock, DAPABlock, DAPA_FPN, FDDN, DualConv, SobelConv):\n'
+        '            c1, c2 = ch[f], args[0]\n'
+        '            if c2 != nc:\n'
+        '                c2 = make_divisible(min(c2, max_channels) * width, 8)\n'
+        '            args = [c1, c2, *args[1:]]\n'
+        '        elif m is SSCAM:\n'
+        '            c1 = ch[f]\n'
+        '            c2 = c1\n'
+        '            args = [c1]\n'
+    )
+    pat = re.compile(r'(^[ \t]+)else:\n[ \t]+c2 = ch\[f\]\n', re.MULTILINE)
+    m = pat.search(t)
+    assert m
+    t, nsub = pat.subn(injection + m.group(0), t, count=1)
+    assert nsub == 1
+tasks_py.write_text(t, encoding='utf-8')
+importlib.reload(yolo_tasks)
+for k, v in CUSTOM.items():
+    setattr(yolo_tasks, k, v)
+
+_prev = os.environ.get('PYTHONPATH', '')
+os.environ['PYTHONPATH'] = str(WORK) if not _prev else f'{WORK}{os.pathsep}{_prev}'
+
+from ultralytics import YOLO
+model = YOLO(str(CKPT))
+metrics = model.val(data=str(yaml), imgsz=768, batch=16, device=0, plots=False, verbose=False, conf=0.001)
+print(f'\nALL mAP50={metrics.box.map50:.5f}  mAP50-95={metrics.box.map:.5f}')
+for i, name in metrics.names.items():
+    print(f'  {name:22s}  mAP50={float(metrics.box.ap50[i]):.5f}')

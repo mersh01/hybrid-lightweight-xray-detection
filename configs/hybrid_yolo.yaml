@@ -1,0 +1,38 @@
+# Hybrid Lightweight X-Ray Detector
+nc: 8
+scales:
+  n: [0.33, 0.25, 1024]
+
+backbone:
+  - [-1, 1, Conv,         [64, 3, 2]]
+  - [-1, 1, Conv,         [128, 3, 2]]
+  - [-1, 3, C2f,          [128, True]]
+  - [-1, 1, Conv,         [256, 3, 2]]
+  - [-1, 4, C2f,          [256, True]]
+  - [-1, 1, HybridBlock,  [256]]
+  - [-1, 1, Conv,         [512, 3, 2]]
+  - [-1, 4, C2f,          [512, True]]
+  - [-1, 1, HybridBlock,  [512]]
+  - [-1, 1, Conv,         [1024, 3, 2]]
+  - [-1, 3, C2f,          [1024, True]]
+  - [-1, 1, SPPF,         [1024, 5]]
+  - [-1, 1, HybridBlock,  [1024]]
+
+head:
+  - [-1, 1, nn.Upsample,  [None, 2, 'nearest']]
+  - [[-1, 8], 1, Concat,  [1]]
+  - [-1, 3, C2f,          [512]]
+  - [-1, 1, DAPABlock,    [512]]
+  - [-1, 1, nn.Upsample,  [None, 2, 'nearest']]
+  - [[-1, 5], 1, Concat,  [1]]
+  - [-1, 3, C2f,          [256]]
+  - [-1, 1, DAPABlock,    [256]]
+  - [-1, 1, DualConv,     [256, 3, 2]]
+  - [[-1, 16], 1, Concat, [1]]
+  - [-1, 3, C2f,          [512]]
+  - [-1, 1, DAPABlock,    [512]]
+  - [-1, 1, DualConv,     [512, 3, 2]]
+  - [[-1, 12], 1, Concat, [1]]
+  - [-1, 3, C2f,          [1024]]
+  - [-1, 1, SSCAM,        []]
+  - [[20, 24, 28], 1, Detect, [nc]]

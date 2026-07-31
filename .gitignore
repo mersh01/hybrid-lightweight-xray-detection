@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+~$*
+
+# Model weights & data (too large / not for GitHub)
+*.pt
+*.pth
+*.onnx
+*.engine
+runs/
+HiXray*/
+**/images/
+**/labels/
+*.zip
+
+# Notebooks checkpoints
+.ipynb_checkpoints/
+
+# Local secrets
+credentials.json
+*.pem
