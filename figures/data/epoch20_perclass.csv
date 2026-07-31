@@ -1,0 +1,10 @@
+class,mAP50,mAP50-95,notes
+ALL,0.80881,0.50267,P=0.79274 R=0.79489
+Cosmetic,0.66460,0.23359,
+Laptop,0.97963,0.72666,
+Mobile_Phone,0.97863,0.66208,
+Nonmetallic_Lighter,0.08598,0.03080,
+Portable_Charger_1,0.95118,0.57353,
+Portable_Charger_2,0.93659,0.53888,
+Tablet,0.95475,0.69120,
+Water,0.91916,0.56466,

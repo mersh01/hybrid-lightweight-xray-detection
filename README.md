@@ -186,3 +186,13 @@ See [`docs/MODULE_SOURCES.md`](docs/MODULE_SOURCES.md).
 
 Code in this repository is released under the MIT License (see `LICENSE`).  
 Dataset and third-party papers remain under their original licenses.
+
+---
+
+## Thesis figures (Python, not AI)
+
+`ash
+cd figures
+pip install matplotlib pandas numpy
+python generate_thesis_figures.py   # writes figures/out/*.png
+``n

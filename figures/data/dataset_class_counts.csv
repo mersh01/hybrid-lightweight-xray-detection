@@ -1,0 +1,17 @@
+split,class_id,class_name,instances,images_containing
+train,0,Cosmetic,7969,6163
+train,1,Laptop,8046,7677
+train,2,Mobile_Phone,43204,29978
+train,3,Nonmetallic_Lighter,706,648
+train,4,Portable_Charger_1,9919,8980
+train,5,Portable_Charger_2,6216,5785
+train,6,Tablet,3921,3764
+train,7,Water,2471,2335
+val,0,Cosmetic,1980,1499
+val,1,Laptop,1996,1925
+val,2,Mobile_Phone,10631,7452
+val,3,Nonmetallic_Lighter,177,163
+val,4,Portable_Charger_1,2502,2251
+val,5,Portable_Charger_2,1572,1449
+val,6,Tablet,997,955
+val,7,Water,621,585
