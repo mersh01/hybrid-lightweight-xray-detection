@@ -7,6 +7,78 @@ MSc research project: a **lightweight hybrid YOLO detector** for prohibited item
 
 ---
 
+## Quick start — run on your PC
+
+```bash
+git clone https://github.com/mersh01/hybrid-lightweight-xray-detection.git
+cd hybrid-lightweight-xray-detection
+pip install -r requirements.txt
+```
+
+### 1) Point to your dataset (one edit)
+
+Open [`configs/dataset.yaml`](configs/dataset.yaml) and set **only** the `path:` line to your HiXray YOLO root:
+
+```yaml
+path: /path/to/HiXray_YOLO2   # ← edit this
+```
+
+Expected folder layout:
+
+```text
+HiXray_YOLO2/
+  images/train  images/val
+  labels/train  labels/val
+```
+
+If you have the official HiXray release (not YOLO format yet):
+
+```bash
+python scripts/convert_hixray_local.py --source /path/to/HiXray --target /path/to/HiXray_YOLO2
+```
+
+Then set `path:` to that `--target` folder.
+
+### 2) Validate the final model
+
+```bash
+python scripts/run_val.py
+```
+
+### 3) Predict on images
+
+```bash
+python scripts/run_predict.py --source /path/to/image_or_folder
+```
+
+Results save under `runs/predict/`.
+
+### 4) (Optional) Train locally
+
+```bash
+# Stage A — long FDD-style (needs strong GPU + many hours)
+python scripts/run_train.py --stage a --data configs/dataset.yaml
+
+# Stage B — rare fine-tune from Stage-A best.pt
+python scripts/run_train.py --stage b --data configs/dataset.yaml --weights path/to/best.pt
+```
+
+For the full thesis recipe (T4×2, oversampling, multi-session resume), use the Kaggle cells below.
+
+---
+
+## Quick start — run on Kaggle (copy-paste)
+
+1. New Kaggle Notebook → **GPU T4**
+2. **Add Input:** HiXray_YOLO2 dataset
+3. **Add Input:** this GitHub repo *or* upload `models/hybrid_rare_ft_epoch20.pt`
+4. Open [`kaggle/cell_01_eval.py`](kaggle/cell_01_eval.py) → **copy the whole file** into one cell → Run  
+5. (Optional) Open [`kaggle/cell_02_predict.py`](kaggle/cell_02_predict.py) → paste → Run  
+
+Full training cells (Stage A / resume / rare FT): see [`kaggle/README.md`](kaggle/README.md).
+
+---
+
 ## Highlights
 
 | Item | Result |
@@ -19,68 +91,37 @@ MSc research project: a **lightweight hybrid YOLO detector** for prohibited item
 
 ---
 
-## What I built / learned
-
-1. **Hybrid architecture design** — composed proven X-ray modules (not one copied paper):
-   - `DualConv` + `FDDN` ← FDD-YOLO  
-   - `SSCAM` ← DGDN  
-   - `DAPA-FPN` ← iX-Det  
-   - `SobelConv` edge branch ← E-MPDNet inspiration  
-   - `HybridBlock` = FDDN + SSCAM (**own composition**)
-
-2. **Fair long-schedule training** — matched FDD-YOLO-style protocol (SGD, 300 epochs, `imgsz=640`, cosine LR) for fair comparison.
-
-3. **Rare-class fine-tuning** — class-weighted BCE (`pos_weight`), image oversampling for Cosmetic / Lighter, custom `RareClassTrainer` that saves best by rare-class fitness.
-
-4. **Engineering for Kaggle / Ultralytics** — custom-module registration, `parse_model` channel patching, DDP-safe trainer, multi-session resume after 12h limits.
-
-5. **Honest evaluation** — independent per-class validation; report re-val numbers (not only training-time logs).
-
----
-
-## Final model (download)
+## Final model
 
 **Released weights:** [`models/hybrid_rare_ft_epoch20.pt`](models/hybrid_rare_ft_epoch20.pt)  
 (~26 MB · rare-class fine-tune epoch 20 · overall mAP50 ≈ **0.809**)
 
-See [`models/README.md`](models/README.md) for load instructions.
+See [`models/README.md`](models/README.md).
 
-## Final code (what to look at)
+## Final code
 
 | Path | Role |
 |------|------|
-| [`modules/hybrid_modules.py`](modules/hybrid_modules.py) | Final architecture blocks |
-| [`modules/custom_rare_trainer.py`](modules/custom_rare_trainer.py) | Final rare-class loss + trainer |
-| [`configs/hybrid_yolo.yaml`](configs/hybrid_yolo.yaml) | Final model YAML |
-| [`scripts/train_fdd_protocol_kaggle.py`](scripts/train_fdd_protocol_kaggle.py) | Stage A long training |
-| [`scripts/train_rare_finetune_kaggle.py`](scripts/train_rare_finetune_kaggle.py) | Stage B fine-tune that produced `epoch20.pt` |
-| [`scripts/eval_epoch20_kaggle.txt`](scripts/eval_epoch20_kaggle.txt) | Official per-class eval cell |
+| [`modules/hybrid_modules.py`](modules/hybrid_modules.py) | Architecture blocks |
+| [`modules/custom_rare_trainer.py`](modules/custom_rare_trainer.py) | Rare-class loss + trainer |
+| [`modules/register_hybrid.py`](modules/register_hybrid.py) | Register custom modules for Ultralytics |
+| [`configs/hybrid_yolo.yaml`](configs/hybrid_yolo.yaml) | Model YAML |
+| [`configs/dataset.yaml`](configs/dataset.yaml) | **Edit `path:` here** |
+| [`scripts/run_val.py`](scripts/run_val.py) | Local validation |
+| [`scripts/run_predict.py`](scripts/run_predict.py) | Local inference |
+| [`scripts/run_train.py`](scripts/run_train.py) | Local train starter |
+| [`kaggle/cell_01_eval.py`](kaggle/cell_01_eval.py) | Kaggle eval (copy-paste) |
 
 ## Repository layout
 
 ```text
-models/
-  hybrid_rare_ft_epoch20.pt # FINAL released checkpoint
-  README.md
-configs/
-  hybrid_yolo.yaml          # hybrid architecture
-  dataset.yaml.example      # HiXray YOLO layout example
-modules/
-  hybrid_modules.py         # DualConv, FDDN, SobelConv, SSCAM, DAPA-*, HybridBlock
-  custom_rare_trainer.py    # weighted cls loss + rare-class best.pt criterion
-scripts/
-  convert_hixray_local.py
-  train_fdd_protocol_kaggle.py
-  resume_fdd_protocol_kaggle.py
-  train_rare_finetune_kaggle.py
-  train_rare_finetune_round2_kaggle.py
-  eval_epoch20_kaggle.txt
-docs/
-  TRAINING_RECIPE.md
-  RESULTS.md
-  MODULE_SOURCES.md
-  MODEL_COMPLEXITY.md
-  DATASET_STATS.md
+models/hybrid_rare_ft_epoch20.pt   # FINAL checkpoint
+configs/dataset.yaml               # EDIT path: then run
+modules/                           # architecture + trainer + register
+scripts/run_val.py / run_predict.py / run_train.py
+kaggle/cell_01_eval.py             # copy-paste into Kaggle
+kaggle/cell_02_predict.py
+docs/                              # results, recipe, citations
 ```
 
 ---
@@ -101,52 +142,19 @@ Eval: HiXray val, `imgsz=768`, `conf=0.001`
 | Water | 0.919 |
 | **ALL** | **0.809** |
 
-Full tables and training curves: [`docs/RESULTS.md`](docs/RESULTS.md)
-
----
-
-## Quick start (local / Kaggle)
-
-### Requirements
-
-```bash
-pip install ultralytics pillow
-```
-
-See [`requirements.txt`](requirements.txt). Training in this project was primarily run on **Kaggle (Tesla T4 ×2)**.
-
-### Data
-
-1. Obtain the [HiXray](https://github.com/hi-xray) (or your HiXray YOLO export) dataset.  
-2. Convert with `scripts/convert_hixray_local.py` if needed.  
-3. Copy `configs/dataset.yaml.example` → `dataset.yaml` and set `path:`.
-
-### Train (Kaggle cells)
-
-The `scripts/*_kaggle.py` files contain full notebook cells used for:
-
-1. **Stage A** — long FDD-protocol training (`train_fdd_protocol_kaggle.py`)  
-2. **Resume** after timeout (`resume_fdd_protocol_kaggle.py`)  
-3. **Stage B** — rare-class fine-tune (`train_rare_finetune_kaggle.py`)  
-
-Details: [`docs/TRAINING_RECIPE.md`](docs/TRAINING_RECIPE.md)
+Full tables: [`docs/RESULTS.md`](docs/RESULTS.md)
 
 ---
 
 ## Module sources (citations)
 
-See [`docs/MODULE_SOURCES.md`](docs/MODULE_SOURCES.md). Key DOIs:
-
-- FDD-YOLO: https://doi.org/10.4108/airo.10277  
-- iX-Det: https://doi.org/10.1093/jcde/qwaf126  
-- DGDN / SSCAM: https://doi.org/10.1109/ACCESS.2025.3581450  
-- E-MPDNet: https://doi.org/10.1109/ACCESS.2025.3622506  
+See [`docs/MODULE_SOURCES.md`](docs/MODULE_SOURCES.md).
 
 ---
 
 ## LinkedIn blurb (copy-paste)
 
-> Built a hybrid lightweight YOLO detector for prohibited-item detection in X-ray baggage images (HiXray, 8 classes). Combined frequency-domain, attention, and distraction-aware FPN modules into one Ultralytics architecture, trained with a long FDD-style protocol, then rare-class fine-tuned with weighted loss + oversampling. Improved overall mAP50 to ~0.809 (above YOLOv11n baseline) and raised Nonmetallic_Lighter mAP50 from 0.017 to 0.086. Code & results: &lt;this-repo-URL&gt;
+> Built a hybrid lightweight YOLO detector for prohibited-item detection in X-ray baggage images (HiXray, 8 classes). Combined frequency-domain, attention, and distraction-aware FPN modules into one Ultralytics architecture, trained with a long FDD-style protocol, then rare-class fine-tuned with weighted loss + oversampling. Improved overall mAP50 to ~0.809 (above YOLOv11n baseline) and raised Nonmetallic_Lighter mAP50 from 0.017 to 0.086. Code & results: https://github.com/mersh01/hybrid-lightweight-xray-detection
 
 ---
 

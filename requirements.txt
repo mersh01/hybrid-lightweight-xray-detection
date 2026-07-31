@@ -1,4 +1,4 @@
-ultralytics>=8.4.0
+ultralytics==8.4.103
 torch>=2.0.0
 torchvision
 pillow>=10.0.0

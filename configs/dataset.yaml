@@ -1,7 +1,9 @@
-# Example HiXray YOLO dataset config
-# Or edit configs/dataset.yaml directly (recommended).
-
+# EDIT ONLY THIS PATH — point to your HiXray YOLO root
+# Expected layout:
+#   <path>/images/train  <path>/images/val
+#   <path>/labels/train  <path>/labels/val
 path: /path/to/HiXray_YOLO2
+
 train: images/train
 val: images/val
 nc: 8

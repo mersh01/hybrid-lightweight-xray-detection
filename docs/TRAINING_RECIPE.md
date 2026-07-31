@@ -1,5 +1,9 @@
 TWO-STAGE TRAINING RECIPE (final reported pipeline)
 
+Ready-to-run:
+  PC     → edit configs/dataset.yaml path: then scripts/run_val.py / run_predict.py / run_train.py
+  Kaggle → copy-paste kaggle/cell_01_eval.py (and scripts/*_kaggle.py for full training)
+
 ================================================================================
 STAGE A — Long FDD-protocol training (hybrid_fdd_protocol_300)
 ================================================================================

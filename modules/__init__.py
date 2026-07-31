@@ -1,1 +1,1 @@
-"""Custom hybrid modules and rare-class trainer for Ultralytics YOLO."""
+"""Hybrid YOLO custom modules for Ultralytics."""

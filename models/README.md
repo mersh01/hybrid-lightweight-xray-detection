@@ -13,15 +13,30 @@
 | Val (official re-val) | ALL mAP50 **0.809**, Cosmetic **0.665**, Nonmetallic_Lighter **0.086** |
 | Size | ~26 MB |
 
-## Load (needs custom modules)
+## Load on PC (recommended)
+
+```bash
+# 1) Edit configs/dataset.yaml → set path: to your HiXray_YOLO2 root
+# 2) Validate
+python scripts/run_val.py
+
+# 3) Predict
+python scripts/run_predict.py --source path/to/image.jpg
+```
+
+These scripts call `modules/register_hybrid.py` so custom blocks + `RareClassTrainer` load correctly.
+
+## Load manually
 
 ```python
-# On Kaggle / local: put hybrid_modules.py and custom_rare_trainer.py on PYTHONPATH
-# (see scripts/eval_epoch20_kaggle.txt for the full working cell)
+from modules.register_hybrid import register
+register()
 
 from ultralytics import YOLO
 model = YOLO("models/hybrid_rare_ft_epoch20.pt")
-metrics = model.val(data="dataset.yaml", imgsz=768, conf=0.001)
+metrics = model.val(data="configs/dataset.yaml", imgsz=768, conf=0.001)
 ```
 
-Because the checkpoint was trained with `RareClassTrainer`, you must have `custom_rare_trainer.py` importable before `YOLO(...)`.
+## Kaggle
+
+Copy [`kaggle/cell_01_eval.py`](../kaggle/cell_01_eval.py) into one notebook cell (see [`kaggle/README.md`](../kaggle/README.md)).
