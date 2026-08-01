@@ -1,24 +1,77 @@
 # =============================================================================
 # Kaggle — FAIR RESOLUTION RE-VAL (copy ENTIRE cell)
 # Compares long-stage best.pt vs selected epoch20.pt at imgsz 640 AND 768
-# so fine-tune gains are not confounded with resolution.
 #
-# Inputs required:
-#   1) HiXray_YOLO2
-#   2) hybrid_fdd_long_best.pt  (or results166 best.pt)
-#   3) hybrid_rare_ft_epoch20.pt / epoch20.pt
-#      (or add the GitHub repo which contains both under models/)
+# Inputs: HiXray_YOLO2 only (weights auto-cloned from GitHub) OR add repo / .pt files
 # Accelerator: GPU T4
 # =============================================================================
 
 !pip -q install ultralytics==8.4.103 pillow==11.0.0
 
-import os, re, sys, importlib, shutil, csv, json
+import os, re, sys, importlib, shutil, csv, json, subprocess
 from pathlib import Path
 
 WORK = Path("/kaggle/working/fair_res_eval")
 WORK.mkdir(parents=True, exist_ok=True)
 INPUT = Path("/kaggle/input")
+REPO_URL = "https://github.com/mersh01/hybrid-lightweight-xray-detection.git"
+REPO_DIR = Path("/kaggle/working/hybrid-lightweight-xray-detection")
+
+def ensure_repo():
+    if not (REPO_DIR / "models" / "hybrid_rare_ft_epoch20.pt").exists():
+        if REPO_DIR.exists():
+            shutil.rmtree(REPO_DIR, ignore_errors=True)
+        print("Cloning GitHub repo for weights + modules...")
+        subprocess.run(["git", "clone", "--depth", "1", REPO_URL, str(REPO_DIR)], check=True)
+    return REPO_DIR
+
+def list_pts():
+    roots = [INPUT, ensure_repo()]
+    out = []
+    for root in roots:
+        if not root.exists():
+            continue
+        for p in root.rglob("*.pt"):
+            if p.is_file() and p.stat().st_size > 5_000_000:
+                out.append(p)
+    return sorted(set(out), key=lambda p: -p.stat().st_size)
+
+def find_long_and_ft():
+    pts = list_pts()
+    ft = long = None
+    for p in pts:
+        if p.name.lower() in ("hybrid_rare_ft_epoch20.pt", "epoch20.pt") or "epoch20" in p.name.lower():
+            ft = p
+            break
+    if ft is None:
+        big = [p for p in pts if p.stat().st_size > 20_000_000]
+        if big:
+            ft = big[0]
+    for p in pts:
+        if p == ft:
+            continue
+        if p.name.lower() == "hybrid_fdd_long_best.pt":
+            long = p
+            break
+    if long is None:
+        for p in pts:
+            if p == ft or "epoch20" in p.name.lower():
+                continue
+            if 8_000_000 < p.stat().st_size < 20_000_000:
+                long = p
+                break
+    if long is None:
+        for p in pts:
+            if p != ft and "best" in p.name.lower():
+                long = p
+                break
+    if not (long and ft):
+        found = "\n".join(f"  {p} ({p.stat().st_size/1e6:.1f} MB)" for p in pts[:20])
+        raise AssertionError(
+            "Missing checkpoint(s). Re-run cell (auto-clones repo) OR add .pt Inputs.\n"
+            f"Found .pt files:\n{found or '  (none)'}"
+        )
+    return long, ft
 
 # --- dataset ---
 DATASET = None
@@ -47,37 +100,19 @@ yaml.write_text(
 )
 
 # --- checkpoints ---
-def find_ckpt(*prefer_names):
-    for name in prefer_names:
-        hits = [p for p in INPUT.rglob(name) if p.stat().st_size > 5_000_000]
-        if hits:
-            hits.sort(key=lambda p: -p.stat().st_size)
-            return hits[0]
-    return None
-
-LONG = find_ckpt("hybrid_fdd_long_best.pt", "best.pt")
-# Prefer explicit long names; if only generic best.pt, avoid epoch20-sized files
-if LONG is not None and "epoch20" in LONG.name.lower():
-    LONG = None
-if LONG is None:
-    cands = [p for p in INPUT.rglob("*.pt") if 8_000_000 < p.stat().st_size < 20_000_000]
-    cands = [p for p in cands if "epoch20" not in p.name.lower() and "rare" not in str(p).lower()]
-    cands.sort(key=lambda p: (0 if "best" in p.name else 1, -p.stat().st_size))
-    assert cands, "Add long-stage best.pt (~13 MB) as Input"
-    LONG = cands[0]
-
-FT = find_ckpt("hybrid_rare_ft_epoch20.pt", "epoch20.pt")
-assert FT is not None, "Add epoch20.pt / hybrid_rare_ft_epoch20.pt as Input"
+LONG, FT = find_long_and_ft()
 
 print("DATASET", DATASET)
 print("LONG   ", LONG, f"({LONG.stat().st_size/1e6:.1f} MB)")
 print("FT     ", FT, f"({FT.stat().st_size/1e6:.1f} MB)")
 
-# --- modules from repo input or embedded ---
+# --- modules from repo input or cloned repo ---
 MOD_SRC = None
 for p in INPUT.rglob("hybrid_modules.py"):
     MOD_SRC = p.parent
     break
+if MOD_SRC is None and (REPO_DIR / "modules" / "hybrid_modules.py").exists():
+    MOD_SRC = REPO_DIR / "modules"
 if MOD_SRC is not None:
     for f in ("hybrid_modules.py", "custom_rare_trainer.py"):
         if (MOD_SRC / f).exists():

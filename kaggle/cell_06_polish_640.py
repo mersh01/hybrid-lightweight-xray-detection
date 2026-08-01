@@ -3,37 +3,62 @@
 # Goal: beat YOLOv11n paper baseline ALL mAP50 = 0.808 at imgsz=640 (8.9 GFLOPs)
 # Current epoch20 @640 re-val: 0.805 → need ~+0.003
 #
-# Inputs: HiXray_YOLO2 + GitHub repo (epoch20.pt + modules)
+# Inputs: HiXray_YOLO2 only (epoch20 auto-cloned from GitHub) OR add repo / .pt
 # GPU T4, ~1–2 hours for 8 epochs
 # =============================================================================
 
 !pip -q install ultralytics==8.4.103 pillow==11.0.0
 
-import os, re, sys, importlib, shutil
+import os, re, sys, importlib, shutil, subprocess
 from pathlib import Path
 
 WORK = Path("/kaggle/working/polish_640")
 WORK.mkdir(parents=True, exist_ok=True)
 INPUT = Path("/kaggle/input")
 PROJECT = Path("/kaggle/working/HiXray_Training_Runs")
+REPO_URL = "https://github.com/mersh01/hybrid-lightweight-xray-detection.git"
+REPO_DIR = Path("/kaggle/working/hybrid-lightweight-xray-detection")
+
+def ensure_repo():
+    if not (REPO_DIR / "models" / "hybrid_rare_ft_epoch20.pt").exists():
+        if REPO_DIR.exists():
+            shutil.rmtree(REPO_DIR, ignore_errors=True)
+        print("Cloning GitHub repo for weights + modules...")
+        subprocess.run(["git", "clone", "--depth", "1", REPO_URL, str(REPO_DIR)], check=True)
+    return REPO_DIR
+
+def find_ft():
+    roots = [INPUT, ensure_repo()]
+    pts = []
+    for root in roots:
+        for p in root.rglob("*.pt"):
+            if p.is_file() and p.stat().st_size > 5_000_000:
+                pts.append(p)
+    pts = sorted(set(pts), key=lambda p: -p.stat().st_size)
+    for p in pts:
+        if "epoch20" in p.name.lower() or p.name.lower() == "hybrid_rare_ft_epoch20.pt":
+            return p
+    big = [p for p in pts if p.stat().st_size > 20_000_000]
+    if big:
+        return big[0]
+    found = "\n".join(f"  {p} ({p.stat().st_size/1e6:.1f} MB)" for p in pts[:15])
+    raise AssertionError(f"Missing epoch20.pt. Re-run cell or add Input.\nFound:\n{found or '  (none)'}")
 
 DATASET = next((p for p in INPUT.rglob("HiXray_YOLO2") if (p / "images" / "val").exists()), None)
 if DATASET is None:
     DATASET = next((p.parent.parent for p in INPUT.rglob("images/val") if (p.parent.parent / "labels" / "val").exists()), None)
 assert DATASET, "Add HiXray_YOLO2"
 
-FT = None
-for name in ("hybrid_rare_ft_epoch20.pt", "epoch20.pt"):
-    hits = [p for p in INPUT.rglob(name) if p.stat().st_size > 5_000_000]
-    if hits:
-        FT = sorted(hits, key=lambda p: -p.stat().st_size)[0]
-        break
-assert FT, "Add epoch20.pt"
+FT = find_ft()
+print("Start checkpoint:", FT)
 
 MOD = next(INPUT.rglob("hybrid_modules.py"), None)
-assert MOD, "Add GitHub repo as Input"
+if MOD is None:
+    MOD = REPO_DIR / "modules" / "hybrid_modules.py"
+assert MOD.exists(), "hybrid_modules.py not found"
+mod_dir = MOD.parent if MOD.is_file() else MOD
 for f in ("hybrid_modules.py", "custom_rare_trainer.py"):
-    shutil.copy2(MOD.parent / f, WORK / f)
+    shutil.copy2(mod_dir / f, WORK / f)
 
 CLASSES = ["Cosmetic","Laptop","Mobile_Phone","Nonmetallic_Lighter","Portable_Charger_1","Portable_Charger_2","Tablet","Water"]
 yaml = WORK / "dataset.yaml"

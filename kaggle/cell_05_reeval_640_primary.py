@@ -1,42 +1,97 @@
 # =============================================================================
 # Kaggle FAST re-eval — epoch20 + long-stage at imgsz=640 (and 768)
 # Copy ENTIRE cell. GPU T4. ~15–25 min for all 4 runs.
-# Inputs: HiXray_YOLO2 + GitHub repo (or both .pt files)
+# Inputs: HiXray_YOLO2 only (repo weights auto-cloned) OR add GitHub repo / .pt files
 # =============================================================================
 
 !pip -q install ultralytics==8.4.103 pillow==11.0.0
 
-import os, re, sys, importlib, shutil, csv, json
+import os, re, sys, importlib, shutil, csv, json, subprocess
 from pathlib import Path
 
 WORK = Path("/kaggle/working/reeval_640")
 WORK.mkdir(parents=True, exist_ok=True)
 INPUT = Path("/kaggle/input")
+REPO_URL = "https://github.com/mersh01/hybrid-lightweight-xray-detection.git"
+REPO_DIR = Path("/kaggle/working/hybrid-lightweight-xray-detection")
+
+def ensure_repo():
+    if not (REPO_DIR / "models" / "hybrid_rare_ft_epoch20.pt").exists():
+        if REPO_DIR.exists():
+            shutil.rmtree(REPO_DIR, ignore_errors=True)
+        print("Cloning GitHub repo for weights + modules...")
+        subprocess.run(["git", "clone", "--depth", "1", REPO_URL, str(REPO_DIR)], check=True)
+    return REPO_DIR
+
+def list_pts():
+    roots = [INPUT, ensure_repo()]
+    out = []
+    for root in roots:
+        if not root.exists():
+            continue
+        for p in root.rglob("*.pt"):
+            if p.is_file() and p.stat().st_size > 5_000_000:
+                out.append(p)
+    return sorted(set(out), key=lambda p: -p.stat().st_size)
+
+def find_long_and_ft():
+    pts = list_pts()
+    ft = long = None
+    for p in pts:
+        if p.name.lower() in ("hybrid_rare_ft_epoch20.pt", "epoch20.pt") or "epoch20" in p.name.lower():
+            ft = p
+            break
+    if ft is None:
+        big = [p for p in pts if p.stat().st_size > 20_000_000]
+        if big:
+            ft = big[0]
+    for p in pts:
+        if p == ft:
+            continue
+        if p.name.lower() == "hybrid_fdd_long_best.pt":
+            long = p
+            break
+    if long is None:
+        for p in pts:
+            if p == ft or "epoch20" in p.name.lower():
+                continue
+            if 8_000_000 < p.stat().st_size < 20_000_000:
+                long = p
+                break
+    if long is None:
+        for p in pts:
+            if p != ft and "best" in p.name.lower():
+                long = p
+                break
+    if not (long and ft):
+        found = "\n".join(f"  {p} ({p.stat().st_size/1e6:.1f} MB)" for p in pts[:20])
+        raise AssertionError(
+            "Missing checkpoint(s). Re-run cell (auto-clones repo) OR add Inputs:\n"
+            "  models/hybrid_fdd_long_best.pt + models/hybrid_rare_ft_epoch20.pt\n"
+            f"Found .pt files:\n{found or '  (none)'}"
+        )
+    return long, ft
 
 DATASET = next((p for p in INPUT.rglob("HiXray_YOLO2") if (p / "images" / "val").exists()), None)
 if DATASET is None:
     DATASET = next((p.parent.parent for p in INPUT.rglob("images/val") if (p.parent.parent / "labels" / "val").exists()), None)
-assert DATASET, "Add HiXray_YOLO2"
+assert DATASET, "Add HiXray_YOLO2 as Kaggle Input"
 
 CLASSES = ["Cosmetic","Laptop","Mobile_Phone","Nonmetallic_Lighter","Portable_Charger_1","Portable_Charger_2","Tablet","Water"]
 yaml = WORK / "dataset.yaml"
 yaml.write_text(f"path: {DATASET.as_posix()}\ntrain: images/train\nval: images/val\nnc: 8\nnames:\n" + "\n".join(f"  {i}: {n}" for i,n in enumerate(CLASSES)) + "\n", encoding="utf-8")
 
-def find(*names):
-    for n in names:
-        hits = [p for p in INPUT.rglob(n) if p.stat().st_size > 5_000_000]
-        if hits:
-            return sorted(hits, key=lambda p: -p.stat().st_size)[0]
-    return None
-
-LONG = find("hybrid_fdd_long_best.pt") or find("best.pt")
-FT = find("hybrid_rare_ft_epoch20.pt") or find("epoch20.pt")
-assert LONG and FT, "Add long best.pt and epoch20.pt"
+LONG, FT = find_long_and_ft()
+print("LONG", LONG, f"({LONG.stat().st_size/1e6:.1f} MB)")
+print("FT  ", FT, f"({FT.stat().st_size/1e6:.1f} MB)")
 
 MOD = next(INPUT.rglob("hybrid_modules.py"), None)
-assert MOD, "Add GitHub repo (modules/) as Input"
+if MOD is None:
+    MOD = REPO_DIR / "modules" / "hybrid_modules.py"
+assert MOD.exists(), f"hybrid_modules.py not found — clone failed? {REPO_DIR}"
+mod_dir = MOD.parent if MOD.is_file() else MOD
 for f in ("hybrid_modules.py", "custom_rare_trainer.py"):
-    shutil.copy2(MOD.parent / f, WORK / f)
+    shutil.copy2(mod_dir / f, WORK / f)
 
 sys.path.insert(0, str(WORK))
 import custom_rare_trainer
