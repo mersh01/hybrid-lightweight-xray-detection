@@ -11,6 +11,8 @@ Then:
 |------|--------|
 | [`cell_01_eval.py`](cell_01_eval.py) | Copy **entire file** into one notebook cell → Run (official val metrics) |
 | [`cell_02_predict.py`](cell_02_predict.py) | Copy into next cell → Run (saves prediction overlays) |
+| [`cell_03_fair_res_eval.py`](cell_03_fair_res_eval.py) | Fair matrix: long vs epoch20 @640 and @768 |
+| [`cell_04_complexity.py`](cell_04_complexity.py) | GFLOPs @640 and @768 |
 | [`cell_05_reeval_640_primary.py`](cell_05_reeval_640_primary.py) | Re-eval long + epoch20 @640/@768 |
 | [`cell_06_polish_640.py`](cell_06_polish_640.py) | Short polish to beat 0.808 @640 |
 
